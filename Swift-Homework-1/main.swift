@@ -94,6 +94,7 @@ class GameBoard{
             player.pos = targetPos
         case .Finish:
             currCell.players.remove(at: currCell.players.firstIndex(where: {$0 === player})!)
+            targetCell.players.append(player)
             return .GameOver
         case .Default:
             currCell.players.remove(at: currCell.players.firstIndex(where: {$0 === player})!)
@@ -195,10 +196,10 @@ class MainGame{
         var result:TurnRes
         moveCycle:repeat{
             repeat {
-                //TODO: Бросание кубика, для отладки пока что не требуется
+                //TODO: Бросание кубика, для отладки пока что не требуется, не работает безопасный ввод
                 print("Ход игрока \(currPlayer.nickname)\nВведи результат бросания кубика (1..6):")
                 answer = readLine() ?? ""
-            } while answer == nil || !answer!.allSatisfy({$0.isNumber}) || !(1...6).contains(Int(answer!)!)
+            } while answer == nil || answer == "" || !answer!.allSatisfy({$0.isNumber})
             result = gameBoard.updatePlayerPos(player: currPlayer, turn: Int(answer!)!)
             if result == .GameOver{
                 self.isActive = false
@@ -221,7 +222,7 @@ func startGame(){
     repeat {
         print("Введите размер доски (5...9):")
         answer = readLine() ?? ""
-    } while answer == nil || !answer!.allSatisfy({$0.isNumber}) || !(5...9).contains(Int(answer!)!)
+    } while answer == nil || answer == "" || !answer!.allSatisfy({$0.isNumber}) || !(5...9).contains(Int(answer!)!)
     let boardSize = Int(answer!)!
     print("Размер: \(boardSize)")
     repeat {
