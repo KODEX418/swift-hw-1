@@ -1,17 +1,17 @@
 import Foundation
-
+let MODE = true // true - xcode, false - terminal
 let RULES = """
 Правила:
 1. Ходы:
     Игроки по очереди бросают игральный кубик и передвигают свою
-фишку на выпавшее количество клеток
+фишку(смайл-аватар)🤗 на выпавшее количество клеток
 2. Лестница (Удача):
     Если фишка останавливается на клетке, где
-находится низ лестницы, игрок поднимается по ней до клетки на верху
+находится низ лестницы 🪜, игрок поднимается по ней до клетки на верху
 лестницы
 3. Змея (Неудача):
     Если фишка останавливается на клетке, где
-находится голова змеи, игрок скатывается вниз по ней до клетки на хвосте
+находится голова змеи 🐍, игрок скатывается вниз по ней до клетки на хвосте
 змеи
 4. Точный бросок:
     Чтобы занять последнюю клетку, нужно выбросить точное
@@ -20,10 +20,15 @@ let RULES = """
 """
 
 
+//TODO: Доработать чтобы не было повторок
 func generateRandomEmoji() -> String{
-    return "🫥"
+    let emojiRange = (0x1f600...0x1f64f)
+    while true{
+        if let emoji = UnicodeScalar(Int.random(in: emojiRange)), emoji.properties.isEmojiPresentation  {
+            return String(emoji)
+        }
+    }
 }
-
 
 class Player{
     static var numberOfPlayers = 0
@@ -48,7 +53,7 @@ enum CellType{
     case Default, Snake, Ladder, Finish
 }
 enum TurnRes{
-    case OK, Fail, GameOver
+    case OK(_ msg:String?), Fail(_ msg:String?), GameOver(_ msg:String?)
 }
 class Cell{
     var players: [Player] = []
@@ -66,7 +71,7 @@ class GameBoard{
     let size:Int
     private var currentPlayerIndex = 0;
     init(size:Int){
-        
+        //TODO: Добавить генерацию бонусов
         self.size = min(size, 12)
         self.board = (0..<size*size).map { _ in Cell() }
         board[5-1] = Cell(type: .Ladder, value: 15)
@@ -74,56 +79,75 @@ class GameBoard{
         board[size*size-1] = Cell(type: .Finish)
     }
     func updatePlayerPos(player:Player, turn:Int=0, initial:Bool = false) -> TurnRes{
+        var msg:String? = nil
+        
         if initial{
             board[0].players.append(player)
-            return .OK
+            msg = nil
+            return .OK(msg)
         }
+        
         let currPos = player.pos
-        var targetPos = currPos + turn
-        if !(0..<size*size).contains(currPos) || !(0..<size*size).contains(targetPos) {return .Fail}
+        let targetPos = currPos + turn
+        if !(0..<size*size).contains(currPos) || !(0..<size*size).contains(targetPos) {
+            msg = "Ход не возможен, выход за границу."
+            return .Fail(msg)
+        }
+        
         let currCell = board[currPos]
-        if !currCell.players.contains(where: {$0 === player}) {return .Fail}
+        if !currCell.players.contains(where: {$0 === player}) {
+            msg = "Error1"
+            return .Fail(msg)
+        }
+        
         var targetCell = board[targetPos]
+        var result:TurnRes
         switch (targetCell.type){
         case .Ladder, .Snake:
-                targetPos = targetCell.value
-                if !(0..<size*size).contains(targetPos) {return .Fail}
-                targetCell = board[targetPos]
-                currCell.players.remove(at: currCell.players.firstIndex(where: {$0 === player})!)
-                targetCell.players.append(player)
-            player.pos = targetPos
+            let newTargetPos = targetCell.value
+            if !(0..<size*size).contains(newTargetPos) {
+                msg = "Error2"
+                return .Fail(msg)
+            }
+            let res:TurnRes = switch targetCell.type {
+            case .Ladder:
+                    .OK("Вы попали на лестницу 🪜 до клетки \(newTargetPos+1)")
+            case .Snake:
+                    .Fail("Вы попали на голову змеи 🐍 до клетки \(newTargetPos+1)")
+            default:
+                    .Fail(nil)
+            }
+            targetCell = board[newTargetPos]
+            player.pos = newTargetPos
+            result = res
         case .Finish:
-            currCell.players.remove(at: currCell.players.firstIndex(where: {$0 === player})!)
-            targetCell.players.append(player)
-            return .GameOver
+            result = .GameOver(nil)
+            player.pos = targetPos
         case .Default:
-            currCell.players.remove(at: currCell.players.firstIndex(where: {$0 === player})!)
-            targetCell.players.append(player)
+            result = .OK(nil)
             player.pos = targetPos
         }
-        return .OK
+        currCell.players.remove(at: currCell.players.firstIndex(where: {$0 === player})!)
+        targetCell.players.append(player)
+        return result
     }
     func printBoard() {
-        
         let colWidth = 14
         let cellLine = String(repeating: "-", count: colWidth)
         let horizontalDivider = "#" + repeatElement(cellLine, count: size).joined(separator: "#") + "#"
         
         print(horizontalDivider)
         
-        // Идем по рядам сверху вниз
         for row in 0..<size {
             let actualRow = size - 1 - row
             var rowNumbers = (1...size).map { actualRow * size + $0 }
-            
-            // Змейка
             if actualRow % 2 != 0 {
                 rowNumbers.reverse()
             }
             
-            var line1 = "#" // Заголовок (Номера и переходы)
-            var line2 = "#" // Игроки (ряд 1)
-            var line3 = "#" // Игроки (ряд 2)
+            var line1 = "#" // заголовок
+            var line2 = "#" // 1 ряд
+            var line3 = "#" // 2 ряд
             
             for cellNumber in rowNumbers {
                 let cellData = board[cellNumber - 1]
@@ -179,6 +203,7 @@ class MainGame{
     var isActive = true
     var currPlayerIndex = 0
     var players:[Player] = []
+    var usedAvatars:Set<String> = []
     var boardSize:Int
     init(players: [Player], boardSize: Int) {
         self.players = players
@@ -191,46 +216,70 @@ class MainGame{
         }
     }
     func make_turn(){
+        if !(0..<players.count).contains(currPlayerIndex){return}
         let currPlayer = players[self.currPlayerIndex]
-        var answer: String?
+        var answer: Int
         var result:TurnRes
-        moveCycle:repeat{
-            repeat {
-                //TODO: Бросание кубика, для отладки пока что не требуется, не работает безопасный ввод
-                print("Ход игрока \(currPlayer.nickname)\nВведи результат бросания кубика (1..6):")
-                answer = readLine() ?? ""
-            } while answer == nil || answer == "" || !answer!.allSatisfy({$0.isNumber})
-            result = gameBoard.updatePlayerPos(player: currPlayer, turn: Int(answer!)!)
-            if result == .GameOver{
-                self.isActive = false
-                break moveCycle
+        //TODO: Добавить ввод игроком выпавшего значения
+        print("Ход игрока \(currPlayer.nickname)\nНажмите, чтобы бросить кубик\n")
+        let _ = readLine()
+        answer = throw_cube()
+        print("Выпало \(answer)")
+        result = gameBoard.updatePlayerPos(player: currPlayer, turn: answer)
+        switch result{
+        case .GameOver:
+            self.isActive = false
+            return
+        case .OK(let msg):
+            if msg != nil{
+                print("Удача👑: \(msg!)")
             }
-        } while result != .OK
+        case .Fail(let msg):
+            if msg != nil{
+                print("Неудача💔: \(msg!)")
+            }
+        }
+        
         self.currPlayerIndex =  (self.currPlayerIndex + 1) % players.count
+        print("Нажмите return, чтобы передать ход...")
+        let _ = readLine()
+
         
-        
+    }
+    //TODO: Улучшить анимацию
+    func throw_cube() -> Int{
+        return Int.random(in: 1...6)
     }
     
 }
-func startGame(){
+func startGame(_ debug:Bool=true) -> Bool{
     print("ИГРА 'ЗМЕИ И ЛЕСТНИЦЫ'\nХотитe прочитать правила? (Y - Да) ")
     var answer:String?
-    answer = readLine() ?? ""
-    if answer == "Y"{
+    answer = readLine()
+    if let answer, answer.lowercased() == "y"{
         print(RULES)
     }
-    repeat {
+    
+    while true {
         print("Введите размер доски (5...9):")
-        answer = readLine() ?? ""
-    } while answer == nil || answer == "" || !answer!.allSatisfy({$0.isNumber}) || !(5...9).contains(Int(answer!)!)
+        answer = readLine()
+        if let answer, answer != "" && answer.allSatisfy({$0.isNumber}) && (5...9).contains(Int(answer)!){
+            break
+        }
+    }
     let boardSize = Int(answer!)!
     print("Размер: \(boardSize)")
-    repeat {
+        
+    while true {
         print("Введите кол-во игроков (2...6):")
-        answer = readLine() ?? ""
-    } while answer == nil || !answer!.allSatisfy({$0.isNumber}) || !(2...6).contains(Int(answer!)!)
+        answer = readLine()
+        if let answer, answer != "" && answer.allSatisfy({$0.isNumber}) && (2...6).contains(Int(answer)!){
+            break
+        }
+    }
     let numberOfPlayers = Int(answer!)!
     print("Игроков: \(numberOfPlayers)")
+        
     var players:[Player] = []
     var name, avatar:String
     for i in 1...numberOfPlayers{
@@ -241,6 +290,7 @@ func startGame(){
         players.append(Player(name: name, avatar: avatar))
         print("Зарегистрирован \(i) Игрок \(players[players.count-1].nickname)\n")
     }
+        
     let game = MainGame(players: players, boardSize: boardSize)
     game.initialize_players()
     game.gameBoard.printBoard()
@@ -248,6 +298,14 @@ func startGame(){
         game.make_turn()
         game.gameBoard.printBoard()
     }while game.isActive
+    print("Победил \(game.players[game.currPlayerIndex].nickname)")
+    print("Хотите начать новую игру? (Y - Да)")
+    answer = readLine()
+    if let answer, answer.lowercased() == "y"{
+        return true
+    }
+    return false
+    
 }
 
-startGame()
+while startGame(MODE){}

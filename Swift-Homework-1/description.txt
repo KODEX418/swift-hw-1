@@ -1,1 +1,3 @@
+запуск из консоли
 
+swift Documents/Xcode/Swift-Homework-1/Swift-Homework-1/main.swift
