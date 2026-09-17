@@ -20,7 +20,6 @@ let RULES = """
 """
 
 
-//TODO: Доработать чтобы не было повторок
 func generateRandomEmoji() -> String{
     let emojiRange = (0x1f600...0x1f64f)
     while true{
@@ -32,16 +31,29 @@ func generateRandomEmoji() -> String{
 
 class Player{
     static var numberOfPlayers = 0
+    static var usedAvatars:[String] = []
     let name:String
     let avatar:String
     var pos: Int = 0
     let index: Int
+    
     init(name: String, avatar: String) {
         Self.numberOfPlayers+=1
         index = Self.numberOfPlayers
         self.name = name != "" ? name : "\(index)"
-        self.avatar = avatar != "" ? avatar : generateRandomEmoji()
+        if let scalar = UnicodeScalar(avatar), avatar != "" && scalar.properties.isEmojiPresentation{
+            self.avatar = avatar
+            Self.usedAvatars.append(avatar)
+        }
+        else{
+            var generatedAvatar:String
+            repeat{
+                generatedAvatar = generateRandomEmoji()
+            } while Self.usedAvatars.contains(generatedAvatar)
+            self.avatar = generatedAvatar
+        }
     }
+    
     var nickname:String {
         return "\(name) \(avatar)"
     }
@@ -74,9 +86,12 @@ class GameBoard{
         //TODO: Добавить генерацию бонусов
         self.size = min(size, 12)
         self.board = (0..<size*size).map { _ in Cell() }
+        board[size*size-1] = Cell(type: .Finish)
+        
         board[5-1] = Cell(type: .Ladder, value: 15)
         board[10-1] = Cell(type: .Snake, value: 3)
-        board[size*size-1] = Cell(type: .Finish)
+        
+        
     }
     func updatePlayerPos(player:Player, turn:Int=0, initial:Bool = false) -> TurnRes{
         var msg:String? = nil
